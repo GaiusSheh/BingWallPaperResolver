@@ -1,0 +1,52 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.5.2.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WallpaperSync", "src\WallpaperSync.csproj", "{1B2F75CC-24A8-8791-E222-90F15E77D70A}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".dev", ".dev", "{5AFEF1F8-8D4F-D9FF-043C-C96A1483E5B8}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{9511C01C-0631-373E-DAB8-6D8C798C9DC3}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MScholtes.VirtualDesktop.Test", ".dev\tests\mscholtes-virtualdesktop-test\MScholtes.VirtualDesktop.Test.csproj", "{3D12900C-8A09-EC01-B0F8-DFD2DA2E8F61}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Slions.VirtualDesktop.Test", ".dev\tests\slions-virtualdesktop-test\Slions.VirtualDesktop.Test.csproj", "{2DD57A22-06AE-ECB3-C903-E4717CA3AD54}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VirtualDesktopApiTest", ".dev\tests\virtualdesktop-api-test\VirtualDesktopApiTest.csproj", "{FAC93BAD-5A34-BF01-235C-D2BFC0684D2E}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{1B2F75CC-24A8-8791-E222-90F15E77D70A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1B2F75CC-24A8-8791-E222-90F15E77D70A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1B2F75CC-24A8-8791-E222-90F15E77D70A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1B2F75CC-24A8-8791-E222-90F15E77D70A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3D12900C-8A09-EC01-B0F8-DFD2DA2E8F61}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3D12900C-8A09-EC01-B0F8-DFD2DA2E8F61}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3D12900C-8A09-EC01-B0F8-DFD2DA2E8F61}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3D12900C-8A09-EC01-B0F8-DFD2DA2E8F61}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2DD57A22-06AE-ECB3-C903-E4717CA3AD54}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2DD57A22-06AE-ECB3-C903-E4717CA3AD54}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2DD57A22-06AE-ECB3-C903-E4717CA3AD54}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2DD57A22-06AE-ECB3-C903-E4717CA3AD54}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FAC93BAD-5A34-BF01-235C-D2BFC0684D2E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FAC93BAD-5A34-BF01-235C-D2BFC0684D2E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FAC93BAD-5A34-BF01-235C-D2BFC0684D2E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FAC93BAD-5A34-BF01-235C-D2BFC0684D2E}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{9511C01C-0631-373E-DAB8-6D8C798C9DC3} = {5AFEF1F8-8D4F-D9FF-043C-C96A1483E5B8}
+		{3D12900C-8A09-EC01-B0F8-DFD2DA2E8F61} = {9511C01C-0631-373E-DAB8-6D8C798C9DC3}
+		{2DD57A22-06AE-ECB3-C903-E4717CA3AD54} = {9511C01C-0631-373E-DAB8-6D8C798C9DC3}
+		{FAC93BAD-5A34-BF01-235C-D2BFC0684D2E} = {9511C01C-0631-373E-DAB8-6D8C798C9DC3}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {058261A0-78AD-4CB3-A943-20E3C2E39F69}
+	EndGlobalSection
+EndGlobal

@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows10.0.19041</TargetFramework>
+    <RootNamespace>WallpaperSync</RootNamespace>
+    <AssemblyName>WallpaperSync</AssemblyName>
+    <UseWindowsForms>true</UseWindowsForms>
+    <PlatformTarget>x64</PlatformTarget>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- 应用程序图标配置 -->
+    <ApplicationIcon>$(MSBuildProjectDirectory)\..\icons\icon.ico</ApplicationIcon>
+    <!-- 编译输出路径配置 -->
+    <OutputPath>$(MSBuildProjectDirectory)\..\build\bin\$(Configuration)\</OutputPath>
+    <IntermediateOutputPath>$(MSBuildProjectDirectory)\..\build\obj\$(Configuration)\</IntermediateOutputPath>
+  </PropertyGroup>
+  
+  <!-- 性能监控开关配置 -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+    <DefineConstants>ENABLE_PERFORMANCE_MONITORING</DefineConstants>
+  </PropertyGroup>
+  
+  <!-- 生产版本默认关闭性能监控，需要时可手动启用 -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <!-- <DefineConstants>ENABLE_PERFORMANCE_MONITORING</DefineConstants> -->
+    <!-- 单文件发布配置 -->
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>true</SelfContained>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <PublishTrimmed>false</PublishTrimmed>
+    <!-- 文件版本优化 -->
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Slions.VirtualDesktop" Version="6.9.2" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.0" />
+    <PackageReference Include="System.Management" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Toolkit.Uwp.Notifications" Version="7.1.3" />
+  </ItemGroup>
+
+  <!-- 发布时复制资源文件 -->
+  <ItemGroup>
+    <Content Include="$(MSBuildProjectDirectory)\..\icons\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <Link>icons\%(RecursiveDir)%(Filename)%(Extension)</Link>
+    </Content>
+  </ItemGroup>
+
+</Project>

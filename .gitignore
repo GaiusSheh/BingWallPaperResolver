@@ -1,0 +1,79 @@
+# Build results
+build/
+bin/
+obj/
+
+# Visual Studio
+.vs/
+.vscode/
+
+# User-specific files
+*.user
+*.userosscache
+*.sln.docstates
+
+# Mono auto generated files
+mono_crash.*
+
+# Build results
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+
+# NuGet Packages
+*.nupkg
+packages/
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# Log files
+*.log
+wallpaper_debug.log
+demo_debug.log
+logs/*.log
+
+# Temporary files
+*.tmp
+*.temp
+~*
+
+# Windows image file caches
+Thumbs.db
+ehthumbs.db
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Icon?
+
+# Image files (temporary wallpapers)
+*.png
+*.jpg
+*.jpeg
+*.bmp
+!README_images/*.png
+!README_images/*.jpg
+
+# ====================================
+# PRIVATE DEVELOPMENT FILES (for Worktree setup)
+# ====================================
+# Development management (private)
+.dev/
+
+# Claude Code configuration (private)
+.claude/
+
+# Large release files (private)
+final-release/
