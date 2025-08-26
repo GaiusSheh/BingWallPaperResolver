@@ -43,11 +43,40 @@
 
   <!-- 发布时复制资源文件 -->
   <ItemGroup>
-    <Content Include="$(MSBuildProjectDirectory)\..\icons\**\*">
+    <Content Include="$(MSBuildProjectDirectory)\..\icons\icon.ico">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
-      <Link>icons\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <Link>icons\icon.ico</Link>
     </Content>
   </ItemGroup>
+
+  <!-- 自定义发布Target：一键打包到final-release （暂时禁用）-->
+  <Target Name="PackageToFinalRelease" AfterTargets="Publish" Condition="false">
+    <PropertyGroup>
+      <FinalReleaseDir>$(MSBuildProjectDirectory)\..\final-release</FinalReleaseDir>
+      <PublishDir>$(MSBuildProjectDirectory)\..\build\bin\$(Configuration)\$(TargetFramework)\publish</PublishDir>
+    </PropertyGroup>
+    
+    <Message Text="=== WallpaperSync 自动化打包 ===" Importance="high" />
+    <Message Text="正在复制到final-release目录..." Importance="high" />
+    
+    <!-- 创建final-release目录 -->
+    <MakeDir Directories="$(FinalReleaseDir)" />
+    <MakeDir Directories="$(FinalReleaseDir)\icons" />
+    
+    <!-- 复制主程序 -->
+    <Copy SourceFiles="$(PublishDir)\WallpaperSync.exe" DestinationFiles="$(FinalReleaseDir)\WallpaperSync.exe" />
+    
+    <!-- 复制图标文件 -->
+    <Copy SourceFiles="$(MSBuildProjectDirectory)\..\icons\icon.ico" DestinationFiles="$(FinalReleaseDir)\icons\icon.ico" />
+    
+    <!-- 清理无用图标文件（如果存在） -->
+    <ItemGroup>
+      <UselessIcons Include="$(FinalReleaseDir)\icons\*.PNG;$(FinalReleaseDir)\icons\*.pptx;$(FinalReleaseDir)\icons\icons8-*" />
+    </ItemGroup>
+    <Delete Files="@(UselessIcons)" ContinueOnError="true" />
+    
+    <Message Text="✅ 打包完成! 输出位置: $(FinalReleaseDir)\WallpaperSync.exe" Importance="high" />
+  </Target>
 
 </Project>
