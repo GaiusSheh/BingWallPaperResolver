@@ -17,6 +17,11 @@ namespace WallpaperSync
         [STAThread]
         static void Main()
         {
+            // 设置全局异常处理
+            Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
+            Application.ThreadException += Application_ThreadException;
+            AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
+            
             try
             {
                 // 设置DPI感知模式 - 兼容.NET Framework 4.8环境
@@ -25,6 +30,7 @@ namespace WallpaperSync
                 Application.SetCompatibleTextRenderingDefault(false);
                 
                 Logger.Log("[Program] WallpaperSync 启动中...");
+                Logger.LogCritical("WallpaperSync 程序启动 - 调试版本");
                 
                 // 配置服务容器
                 var serviceProvider = ServiceContainer.ConfigureServices();
@@ -40,10 +46,24 @@ namespace WallpaperSync
             }
             catch (Exception ex)
             {
+                Logger.LogCritical($"Main方法异常: {ex.GetType().Name} - {ex.Message}");
                 Logger.Log($"[Program] 应用程序异常: {ex}");
                 MessageBox.Show($"应用程序发生异常:\n{ex.Message}", "WallpaperSync 错误", 
                               MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
+        }
+        
+        private static void Application_ThreadException(object sender, System.Threading.ThreadExceptionEventArgs e)
+        {
+            Logger.LogCritical($"UI线程异常: {e.Exception.GetType().Name} - {e.Exception.Message}");
+            Logger.Log($"[Program] UI线程异常: {e.Exception}");
+        }
+        
+        private static void CurrentDomain_UnhandledException(object sender, UnhandledExceptionEventArgs e)
+        {
+            var ex = e.ExceptionObject as Exception;
+            Logger.LogCritical($"未处理的域异常: {ex?.GetType().Name} - {ex?.Message} (IsTerminating: {e.IsTerminating})");
+            Logger.Log($"[Program] 未处理的域异常: {e.ExceptionObject} (IsTerminating: {e.IsTerminating})");
         }
     }
 }

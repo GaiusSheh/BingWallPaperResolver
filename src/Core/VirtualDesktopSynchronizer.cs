@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 using WallpaperSync.Core;
 
 namespace WallpaperSync
@@ -20,6 +22,12 @@ namespace WallpaperSync
         private WindowsDesktop.VirtualDesktop _cachedCurrent = null;
         private DateTime _lastCacheTime = DateTime.MinValue;
         private readonly TimeSpan _cacheValidDuration = TimeSpan.FromSeconds(2); // 2秒缓存有效期
+        
+        // 初始化状态跟踪
+        private volatile bool _initializationCompleted = false;
+        private volatile bool _virtualDesktopSupported = false;
+        private readonly object _initLock = new object();
+        private string _initializationError = null;
         
         /// <summary>
         /// 虚拟桌面信息结构
@@ -94,6 +102,16 @@ namespace WallpaperSync
                 return (null, null);
             }
             
+            // 等待初始化完成
+            WaitForInitialization();
+            
+            // 如果初始化失败或不支持虚拟桌面，返回null
+            if (!_virtualDesktopSupported)
+            {
+                Logger.LogDebug($"[VirtualDesktopSynchronizer] 虚拟桌面不支持: {_initializationError ?? "未知原因"}");
+                return (null, null);
+            }
+            
             // 检查缓存是否有效
             bool cacheValid = _cachedDesktops != null && 
                              _cachedCurrent != null && 
@@ -107,40 +125,15 @@ namespace WallpaperSync
             
             try
             {
-                // 缓存过期或无效，重新获取
+                // 缓存过期或无效，重新获取（带超时保护）
                 Logger.LogDebug("[VirtualDesktopSynchronizer] 刷新虚拟桌面缓存");
-                var desktops = WindowsDesktop.VirtualDesktop.GetDesktops();
-                var current = WindowsDesktop.VirtualDesktop.Current;
                 
-                // 方案2: 更激进的COM清理 - 立即释放不需要长期持有的COM对象
-                try
+                var (desktops, current) = GetVirtualDesktopsWithTimeout();
+                
+                if (desktops == null)
                 {
-                    // 创建轻量级副本，避免持有原始COM对象引用
-                    var desktopsList = desktops?.ToList();
-                    if (desktopsList != null)
-                    {
-                        // 立即释放枚举器中的COM对象（保留必要信息）
-                        foreach (var desktop in desktops)
-                        {
-                            try 
-                            {
-                                // 访问必要属性后立即尝试释放
-                                var name = desktop?.Name; // 触发属性访问
-                                // 注意：不能直接释放desktop对象，因为我们还需要用它
-                                // Marshal.ReleaseComObject(desktop); // 这会导致后续访问失败
-                            }
-                            catch (Exception ex)
-                            {
-                                Logger.LogDebug($"[VirtualDesktopSynchronizer] COM对象属性访问异常: {ex.Message}");
-                            }
-                        }
-                    }
-                    
-                    Logger.LogDebug("[VirtualDesktopSynchronizer] 激进COM清理：属性预访问完成");
-                }
-                catch (Exception comEx)
-                {
-                    Logger.LogDebug($"[VirtualDesktopSynchronizer] 激进COM清理异常: {comEx.Message}");
+                    Logger.LogDebug("[VirtualDesktopSynchronizer] 获取虚拟桌面信息超时或失败");
+                    return (null, null);
                 }
                 
                 // 更新缓存
@@ -162,49 +155,200 @@ namespace WallpaperSync
         }
         
         /// <summary>
-        /// 初始化虚拟桌面同步器
+        /// 获取虚拟桌面信息 - STA线程兼容的同步版本
         /// </summary>
-        public VirtualDesktopSynchronizer()
+        private (IEnumerable<WindowsDesktop.VirtualDesktop> desktops, WindowsDesktop.VirtualDesktop current) GetVirtualDesktopsWithTimeout()
         {
             try
             {
-                Logger.Log("[VirtualDesktopSynchronizer] 初始化 Slions.VirtualDesktop 同步器...");
-                
-                // 测试Slions库是否可用
-                if (IsVirtualDesktopSupported())
-                {
-                    Logger.Log("[VirtualDesktopSynchronizer] Slions.VirtualDesktop 库初始化成功");
-                }
-                else
-                {
-                    Logger.Log("[VirtualDesktopSynchronizer] 警告: Slions.VirtualDesktop 库不可用，将使用兼容模式");
-                }
+                // STA线程修复：直接在当前线程获取，避免Task.Run创建MTA线程
+                var desktops = WindowsDesktop.VirtualDesktop.GetDesktops();
+                var current = WindowsDesktop.VirtualDesktop.Current;
+                return (desktops, current);
             }
             catch (Exception ex)
             {
-                Logger.Log("[VirtualDesktopSynchronizer] 初始化失败: " + ex.Message);
-                Logger.Log("[VirtualDesktopSynchronizer] 将使用兼容模式 (SystemParametersInfo)");
+                Logger.LogDebug($"[VirtualDesktopSynchronizer] 获取虚拟桌面信息异常: {ex.Message}");
+                return (null, null);
             }
         }
         
         /// <summary>
-        /// 检查虚拟桌面支持状态
+        /// 初始化虚拟桌面同步器 - STA线程兼容的同步初始化
+        /// 修复：移除异步初始化以确保VirtualDesktop COM对象在STA线程上工作
+        /// </summary>
+        public VirtualDesktopSynchronizer()
+        {
+            Logger.Log("[VirtualDesktopSynchronizer] 初始化 Slions.VirtualDesktop 同步器...");
+            
+            // STA线程修复：移除异步初始化，改为同步初始化以确保VirtualDesktop库STA线程兼容性
+            // 历史教训：异步Task.Run创建的MTA线程会导致VirtualDesktop API失效并引起程序崩溃
+            InitializeSync();
+        }
+        
+        /// <summary>
+        /// 同步初始化虚拟桌面功能 - STA线程兼容版本
+        /// </summary>
+        private void InitializeSync()
+        {
+            try
+            {
+                Logger.Log("[VirtualDesktopSynchronizer] 🚀 开始同步初始化虚拟桌面功能...");
+                Logger.Log($"[VirtualDesktopSynchronizer] 🔧 当前线程ID: {System.Threading.Thread.CurrentThread.ManagedThreadId}");
+                Logger.Log($"[VirtualDesktopSynchronizer] 🔧 STA状态: {System.Threading.Thread.CurrentThread.GetApartmentState()}");
+                
+                Logger.Log("[VirtualDesktopSynchronizer] 🎯 直接在当前线程进行VirtualDesktop测试（STA兼容）...");
+                // STA线程修复：直接在当前线程测试，避免Task.Run创建MTA线程
+                _virtualDesktopSupported = TestVirtualDesktopSupportSync();
+                Logger.Log($"[VirtualDesktopSynchronizer] 🔧 测试完成，结果: {_virtualDesktopSupported}");
+                
+                Logger.Log("[VirtualDesktopSynchronizer] 🔒 设置初始化完成状态...");
+                lock (_initLock)
+                {
+                    _initializationCompleted = true;
+                }
+                
+                if (_virtualDesktopSupported)
+                {
+                    Logger.Log("[VirtualDesktopSynchronizer] ✅ Slions.VirtualDesktop 库同步初始化成功 (STA线程兼容)");
+                }
+                else
+                {
+                    Logger.Log("[VirtualDesktopSynchronizer] ⚠️ 警告: Slions.VirtualDesktop 库不可用，将使用兼容模式");
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogCritical($"VirtualDesktopSynchronizer 同步初始化严重失败: {ex.GetType().Name} - {ex.Message}");
+                Logger.Log($"[VirtualDesktopSynchronizer] ❌ 同步初始化严重失败: {ex.GetType().Name}");
+                Logger.Log($"[VirtualDesktopSynchronizer] ❌ 异常消息: {ex.Message}");
+                Logger.Log($"[VirtualDesktopSynchronizer] ❌ 异常堆栈: {ex.StackTrace}");
+                lock (_initLock)
+                {
+                    _initializationCompleted = true;
+                    _virtualDesktopSupported = false;
+                    _initializationError = ex.Message;
+                }
+                Logger.Log($"[VirtualDesktopSynchronizer] ⚠️ 同步初始化失败: {ex.Message}，将使用兼容模式");
+            }
+        }
+        
+        /// <summary>
+        /// 测试虚拟桌面支持（带取消令牌）- 增强调试版本
+        /// </summary>
+        private bool TestVirtualDesktopSupport(CancellationToken cancellationToken)
+        {
+            try
+            {
+                Logger.Log("[VirtualDesktopSynchronizer] 🔍 开始测试虚拟桌面支持...");
+                cancellationToken.ThrowIfCancellationRequested();
+                
+                Logger.Log("[VirtualDesktopSynchronizer] 🔍 步骤1: 尝试获取虚拟桌面列表...");
+                // 尝试获取虚拟桌面信息
+                var desktops = WindowsDesktop.VirtualDesktop.GetDesktops();
+                Logger.Log("[VirtualDesktopSynchronizer] ✅ 步骤1: GetDesktops() 调用成功");
+                cancellationToken.ThrowIfCancellationRequested();
+                
+                Logger.Log("[VirtualDesktopSynchronizer] 🔍 步骤2: 尝试获取当前虚拟桌面...");
+                var current = WindowsDesktop.VirtualDesktop.Current;
+                Logger.Log("[VirtualDesktopSynchronizer] ✅ 步骤2: Current 属性获取成功");
+                cancellationToken.ThrowIfCancellationRequested();
+                
+                Logger.Log("[VirtualDesktopSynchronizer] 🔍 步骤3: 统计虚拟桌面数量...");
+                int desktopCount = desktops?.Count() ?? 0;
+                Logger.Log($"[VirtualDesktopSynchronizer] ✅ 步骤3: 检测到 {desktopCount} 个虚拟桌面");
+                
+                bool supported = desktopCount > 0;
+                Logger.Log($"[VirtualDesktopSynchronizer] 🎯 虚拟桌面支持测试结果: {(supported ? "支持" : "不支持")}");
+                
+                return supported;
+            }
+            catch (OperationCanceledException ex)
+            {
+                Logger.Log($"[VirtualDesktopSynchronizer] ⏰ 虚拟桌面测试被取消: {ex.Message}");
+                throw; // 重新抛出取消异常
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"[VirtualDesktopSynchronizer] ❌ 虚拟桌面检测失败: {ex.GetType().Name}");
+                Logger.Log($"[VirtualDesktopSynchronizer] ❌ 异常消息: {ex.Message}");
+                Logger.Log($"[VirtualDesktopSynchronizer] ❌ 异常堆栈: {ex.StackTrace}");
+                return false;
+            }
+        }
+        
+        /// <summary>
+        /// 测试虚拟桌面支持 - STA线程兼容的同步版本
+        /// </summary>
+        private bool TestVirtualDesktopSupportSync()
+        {
+            try
+            {
+                Logger.Log("[VirtualDesktopSynchronizer] 🔍 开始测试虚拟桌面支持（STA线程）...");
+                
+                Logger.Log("[VirtualDesktopSynchronizer] 🔍 步骤1: 尝试获取虚拟桌面列表...");
+                // 尝试获取虚拟桌面信息
+                var desktops = WindowsDesktop.VirtualDesktop.GetDesktops();
+                Logger.Log("[VirtualDesktopSynchronizer] ✅ 步骤1: GetDesktops() 调用成功");
+                
+                Logger.Log("[VirtualDesktopSynchronizer] 🔍 步骤2: 尝试获取当前虚拟桌面...");
+                var current = WindowsDesktop.VirtualDesktop.Current;
+                Logger.Log("[VirtualDesktopSynchronizer] ✅ 步骤2: Current 属性获取成功");
+                
+                Logger.Log("[VirtualDesktopSynchronizer] 🔍 步骤3: 统计虚拟桌面数量...");
+                int desktopCount = desktops?.Count() ?? 0;
+                Logger.Log($"[VirtualDesktopSynchronizer] ✅ 步骤3: 检测到 {desktopCount} 个虚拟桌面");
+                
+                bool supported = desktopCount > 0;
+                Logger.Log($"[VirtualDesktopSynchronizer] 🎯 虚拟桌面支持测试结果: {(supported ? "支持" : "不支持")} (STA线程兼容)");
+                
+                return supported;
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"[VirtualDesktopSynchronizer] ❌ 虚拟桌面检测失败: {ex.GetType().Name}");
+                Logger.Log($"[VirtualDesktopSynchronizer] ❌ 异常消息: {ex.Message}");
+                Logger.Log($"[VirtualDesktopSynchronizer] ❌ 异常堆栈: {ex.StackTrace}");
+                return false;
+            }
+        }
+        
+        /// <summary>
+        /// 检查虚拟桌面支持状态（等待异步初始化完成）
         /// </summary>
         /// <returns>是否支持虚拟桌面功能</returns>
         public bool IsVirtualDesktopSupported()
         {
-            try
+            // 等待异步初始化完成
+            WaitForInitialization();
+            
+            return _virtualDesktopSupported;
+        }
+        
+        /// <summary>
+        /// 等待初始化完成（最多等待10秒）
+        /// </summary>
+        private void WaitForInitialization()
+        {
+            const int maxWaitMs = 10000; // 10秒超时
+            const int checkIntervalMs = 100;
+            int totalWaitedMs = 0;
+            
+            while (!_initializationCompleted && totalWaitedMs < maxWaitMs)
             {
-                // 使用缓存的VirtualDesktop API访问
-                var (desktops, current) = GetCachedVirtualDesktops();
-                
-                Logger.Log("[VirtualDesktopSynchronizer] 虚拟桌面检测: " + desktops.Count() + " 个桌面，当前: " + (current?.Name ?? "未知"));
-                return true;
+                Thread.Sleep(checkIntervalMs);
+                totalWaitedMs += checkIntervalMs;
             }
-            catch (Exception ex)
+            
+            if (!_initializationCompleted)
             {
-                Logger.Log("[VirtualDesktopSynchronizer] 虚拟桌面检测失败: " + ex.Message);
-                return false;
+                Logger.Log("[VirtualDesktopSynchronizer] 等待初始化超时，强制使用兼容模式");
+                lock (_initLock)
+                {
+                    _initializationCompleted = true;
+                    _virtualDesktopSupported = false;
+                    _initializationError = "等待初始化超时";
+                }
             }
         }
         
@@ -272,59 +416,70 @@ namespace WallpaperSync
         }
         
         /// <summary>
-        /// 同步壁纸到所有虚拟桌面
+        /// 同步壁纸到所有虚拟桌面 - 增强调试版本
         /// </summary>
         /// <param name="wallpaperPath">壁纸文件路径</param>
         /// <returns>同步是否成功</returns>
         public bool SynchronizeWallpaperToAllDesktops(string wallpaperPath)
         {
+            Logger.Log("[VirtualDesktopSynchronizer] 🎯 ========== 开始虚拟桌面壁纸同步 ==========");
+            Logger.Log($"[VirtualDesktopSynchronizer] 🔧 当前线程ID: {System.Threading.Thread.CurrentThread.ManagedThreadId}");
+            
             if (disposed)
             {
-                Logger.Log("[VirtualDesktopSynchronizer] 对象已释放，无法执行同步");
+                Logger.Log("[VirtualDesktopSynchronizer] ❌ 对象已释放，无法执行同步");
                 return false;
             }
             
+            Logger.Log("[VirtualDesktopSynchronizer] 🔍 步骤1: 验证壁纸路径...");
             if (string.IsNullOrEmpty(wallpaperPath))
             {
-                Logger.Log("[VirtualDesktopSynchronizer] 壁纸路径为空，同步终止");
+                Logger.Log("[VirtualDesktopSynchronizer] ❌ 壁纸路径为空，同步终止");
                 return false;
             }
+            Logger.Log($"[VirtualDesktopSynchronizer] 目标壁纸: {wallpaperPath}");
             
+            Logger.Log("[VirtualDesktopSynchronizer] 🔍 步骤2: 检查壁纸文件存在性...");
             if (!System.IO.File.Exists(wallpaperPath))
             {
-                Logger.Log("[VirtualDesktopSynchronizer] 壁纸文件不存在: " + wallpaperPath);
+                Logger.Log("[VirtualDesktopSynchronizer] ❌ 壁纸文件不存在: " + wallpaperPath);
                 return false;
             }
+            Logger.Log("[VirtualDesktopSynchronizer] ✅ 壁纸文件存在");
             
             bool result = false;
             try
             {
-                Logger.Log("[VirtualDesktopSynchronizer] ========== 开始虚拟桌面壁纸同步 ==========");
-                Logger.Log("[VirtualDesktopSynchronizer] 目标壁纸: " + wallpaperPath);
-                
+                Logger.Log("[VirtualDesktopSynchronizer] 🔍 步骤3: 检查虚拟桌面支持状态...");
                 // 优先尝试使用Slions.VirtualDesktop
                 if (IsVirtualDesktopSupported())
                 {
+                    Logger.Log("[VirtualDesktopSynchronizer] ✅ 虚拟桌面支持，使用Slions.VirtualDesktop进行同步");
                     result = SyncWithSlionsVirtualDesktop(wallpaperPath);
                 }
                 else
                 {
-                    Logger.Log("[VirtualDesktopSynchronizer] 使用兼容模式同步");
+                    Logger.Log("[VirtualDesktopSynchronizer] ⚠️ 虚拟桌面不支持，使用兼容模式同步");
                     result = SyncWithSystemParametersInfo(wallpaperPath);
                 }
                 
+                Logger.Log($"[VirtualDesktopSynchronizer] 🎯 同步操作完成，结果: {(result ? "成功" : "失败")}");
                 return result;
             }
             catch (Exception ex)
             {
-                Logger.Log("[VirtualDesktopSynchronizer] 同步过程出错: " + ex.Message);
-                Logger.Log("[VirtualDesktopSynchronizer] 错误堆栈: " + ex.StackTrace);
+                Logger.LogCritical($"VirtualDesktopSynchronizer 同步过程严重异常: {ex.GetType().Name} - {ex.Message}");
+                Logger.Log($"[VirtualDesktopSynchronizer] ❌ 同步过程严重异常: {ex.GetType().Name}");
+                Logger.Log($"[VirtualDesktopSynchronizer] ❌ 异常消息: {ex.Message}");
+                Logger.Log($"[VirtualDesktopSynchronizer] ❌ 异常堆栈: {ex.StackTrace}");
                 return false;
             }
             finally
             {
+                Logger.Log("[VirtualDesktopSynchronizer] 🧹 开始清理COM对象...");
                 // 同步完成后强制清理COM对象
                 ForceCleanupComObjects();
+                Logger.Log("[VirtualDesktopSynchronizer] 🎯 ========== 虚拟桌面壁纸同步流程结束 ==========");
             }
         }
         

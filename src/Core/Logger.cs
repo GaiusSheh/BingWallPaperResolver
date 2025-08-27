@@ -87,6 +87,30 @@ namespace WallpaperSync.Core
         public static void LogWarning(string message) => Log(message, LogLevel.Warning);
         public static void LogError(string message) => Log(message, LogLevel.Error);
         
+        /// <summary>
+        /// 记录关键错误到Windows事件日志，用于硬崩溃场景的备份
+        /// </summary>
+        public static void LogCritical(string message)
+        {
+            // 先记录到普通日志
+            Log($"🚨 CRITICAL: {message}", LogLevel.Error);
+            
+            // 尝试写入Windows事件日志作为备份
+            try
+            {
+                using (var eventLog = new EventLog("Application"))
+                {
+                    eventLog.Source = "WallpaperSync";
+                    eventLog.WriteEntry($"WallpaperSync Critical Error: {message}", EventLogEntryType.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                // 即使事件日志失败，也不能影响主程序
+                Log($"警告: 无法写入Windows事件日志: {ex.Message}");
+            }
+        }
+        
         private static bool ShouldThrottleMessage(string message)
         {
             var messageKey = GetMessageKey(message);

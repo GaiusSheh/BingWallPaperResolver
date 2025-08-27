@@ -23,7 +23,7 @@ if exist "%BUILD_DIR%" (
 
 echo 1. 发布单文件版本...
 cd /d "%PROJECT_ROOT%\src"
-"C:\Program Files\dotnet\dotnet.exe" publish -c Release --self-contained --runtime win-x64 -p:PublishSingleFile=true
+"C:\Program Files\dotnet\dotnet.exe" publish -c Release --self-contained --runtime win-x64 -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
 
 if errorlevel 1 (
     echo 发布失败！
@@ -37,6 +37,11 @@ if not exist "%FINAL_DIR%" mkdir "%FINAL_DIR%"
 if not exist "%FINAL_DIR%\icons" mkdir "%FINAL_DIR%\icons"
 
 copy "%BUILD_DIR%\WallpaperSync.exe" "%FINAL_DIR%\"
+REM 复制VirtualDesktop.dll（如果单文件打包未包含）
+if exist "%PROJECT_ROOT%\build\bin\Release\net8.0-windows10.0.19041\win-x64\VirtualDesktop.dll" (
+    echo 复制VirtualDesktop.dll...
+    copy "%PROJECT_ROOT%\build\bin\Release\net8.0-windows10.0.19041\win-x64\VirtualDesktop.dll" "%FINAL_DIR%\"
+)
 copy "%PROJECT_ROOT%\icons\icon.ico" "%FINAL_DIR%\icons\"
 
 echo.
